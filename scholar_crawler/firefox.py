@@ -21,6 +21,9 @@ class FirefoxSession:
     def url(self):
         return self.driver.current_url
 
+    def close(self):
+        self.driver.close()
+
     def minimize(self):
         self.driver.minimize_window()
 

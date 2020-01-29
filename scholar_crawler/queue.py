@@ -25,8 +25,11 @@ class ScholarQueue:
         self.active_request = None
         self.active_response = None
 
+        print('Opening Firefox...')
+        print('When prompted by Windows, allow access to Networks.')
         # initialize cookies, check for captcha
         self.sess.get('https://scholar.google.com')
+        print('Opening Google Scholar, solve the captcha if needed...')
 
     def __repr__(self):
         r = len(self.request_queue)
@@ -74,6 +77,7 @@ class ScholarQueue:
             self.sess.show()
             input('Press any key to continue...')
         else:
+            self.sess.close()
             raise KeyboardInterrupt('User chose to stop the crawl.')
 
     def _check_for_robot(self):
@@ -81,10 +85,10 @@ class ScholarQueue:
         Checks to see if google has detected that we are scraping
         """
         msgs = [
-            b'Our systems have detected unusual traffic from your computer network',
-            b"Please show you're not a robot",
-            b"Sorry, we can't verify that you're not a robot",
-            b"really you sending the requests, and not a robot"
+            'Our systems have detected unusual traffic from your computer network',
+            "Please show you're not a robot",
+            "Sorry, we can't verify that you're not a robot",
+            "really you sending the requests, and not a robot"
         ]
         return any(msg in self.active_response.content for msg in msgs)
 
