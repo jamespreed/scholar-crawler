@@ -14,8 +14,7 @@ class FirefoxSession:
 
     def get(self, url):
         self.driver.get(url)
-        res = Response(url, self.driver.page_source)
-        return res
+        return self.current_response
 
     @property
     def current_response(self):
