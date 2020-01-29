@@ -18,6 +18,10 @@ class FirefoxSession:
         return res
 
     @property
+    def current_response(self):
+        return Response(self.driver.current_url, self.driver.page_source)
+
+    @property
     def url(self):
         return self.driver.current_url
 
