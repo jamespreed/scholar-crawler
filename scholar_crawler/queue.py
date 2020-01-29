@@ -14,7 +14,6 @@ class ScholarQueue:
                  max_author_search_page=3,
                  max_author_page=2):
         #self.sess = HTMLSession()
-        self.sess = FirefoxSession()
         self.max_hops = max_hops
         self.sleep_between = sleep_between
         self.max_author_search_page = max_author_search_page
@@ -26,7 +25,8 @@ class ScholarQueue:
         self.active_response = None
 
         print('Opening Firefox...')
-        print('When prompted by Windows, allow access to Networks.')
+        print('If prompted by Windows, allow access to Networks.')
+        self.sess = FirefoxSession()
         # initialize cookies, check for captcha
         self.sess.get('https://scholar.google.com')
         print('Opening Google Scholar, solve the captcha if needed...')
@@ -69,7 +69,8 @@ class ScholarQueue:
             if self._check_for_robot():
                 ans = input('Google has detected a robot.  Do you want to solve the captcha? ([y]/n):')
                 self._input_handler(ans)
-            response.html.lxml.url = url
+                self.active_response = response = self.sess.current_response
+            # response.html.lxml.url = url
             yield request, response
 
     def _input_handler(self, ans):
