@@ -3,7 +3,7 @@ import unicodedata
 import string
 import jellyfish
 from collections import defaultdict
-from itertools import permutations
+from itertools import combinations, permutations
 from hashlib import md5
 
 
@@ -98,6 +98,7 @@ class Author:
     
 
 class Document:
+    _chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789' 
     
     def __init__(self, 
                  title,
@@ -123,14 +124,18 @@ class Document:
         self.issue = issue
         self.conference = conference
         self.book = book
+        self.doc_id = self._make_id()
         self._hash = self._make_hash()
 
     def __repr__(self):
         n = self.__class__.__name__
         return f'<{n} "{self.title[:20]}..." by {self.parent_author}>'
 
+    def _make_id(self):
+        return '@'+''.join(random.choices(self._chars, k=7))
+
     def compare(self, other):
-        # jaro distance + jaccard similary of metadata
+        """jaro distance + jaccard similary of metadata"""
         t = jellyfish.jaro_distance(self.title.lower(), other.title.lower())
         m = self.dict_similarity(self.metadata, other.metadata)
         return (t + m) / 2
@@ -182,6 +187,9 @@ class Document:
 
     @staticmethod
     def dict_similarity(x, y):
+        """Score of the similarity between 2 dictionaries.  Harmonic mean
+        of the jaccard similarity of the keys and the boolean overlap of the
+        matching values of the shared keys"""
         a = set(x)
         b = set(y)
         i = a.intersection(b)
@@ -208,6 +216,7 @@ class Graph:
         return defaultdict(list)
 
     def add_author(self, a_dict):
+        """Adds an author to the graph from the dictionary `a_dict`"""
         author = Author(
             a_dict['name'],
             a_dict['author_id'],
@@ -226,6 +235,9 @@ class Graph:
         }
 
         doc = Document(**d_dict)
+        if len(doc.authors) == 1:
+            return
+
         parent_id = d_dict['parent_author']
         parent = self.ids[parent_id]
 
@@ -264,3 +276,38 @@ class Graph:
                 if author.filn == author2.filn:
                     # this mutates both authors to be the same...
                     author.symmetric_update(author2)
+
+    def edge_list(self):
+        """Returns the edgelist of the graph"""
+        yield 'author_id_1', 'author_id_2', 'doc_id'
+        for doc, coauthors in self.documents.items():
+            for a1, a2 in combinations(coauthors, 2):
+                yield a1.author_id, a2.author_id, doc.doc_id
+
+    def node_attributes(self):
+        """Returns the attributes for each node/author"""
+        yield 'author_id', 'name', 'filn', 'parent_id'
+        for a in self.authors:
+            yield a.author_id, a.name, ' '.join(a.filn), a.parent_id
+
+    def edge_attributes(self):
+        """Returns the attributes for each edge/document"""
+        attrs = (
+            'doc_id'
+            'title',
+            'conference',
+            'book',
+            'journal',
+            'publisher',
+            'publication_date',
+            'issue',
+            'volume',
+            'pages',
+            'parent_author',
+        )
+        yield attrs
+        for doc in self.documents:
+            out = tuple(
+                getattr(doc, attr, '') for attr in attrs
+            )
+            yield out
