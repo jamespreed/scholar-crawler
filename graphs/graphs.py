@@ -116,7 +116,7 @@ class Document:
                  **kwargs):
         self.title = title
         self.parent_author = parent_author
-        self.authors = authors
+        self.authors = sorted(filter(lambda x: ' ' in x, set(authors)))
         self.publication_date = publication_date
         self.pages = pages
         self.publisher = publisher
@@ -245,7 +245,7 @@ class Graph:
         if len(doc.authors) == 1:
             return
 
-        parent_id = d_dict['parent_author']
+        parent_id = doc.parent_author
         parent = self.ids[parent_id]
 
         if doc in self.documents:
@@ -355,7 +355,7 @@ class Graph:
                 self.add_document(d_dict)
                 msg = f'Documents {j} / {n_doc}   '
                 _print(msg + L(len(msg)), end='', ps=ps)
-                
+
             _print('\r', end='', ps=ps)
 
         if print_status:
