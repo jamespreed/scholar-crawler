@@ -331,6 +331,12 @@ class Graph:
         def L(n):
             return f'\033[{n}D'
 
+        def _print(*args, ps=print_status, **kwargs):
+            if ps:
+                print(*args, **kwargs)
+
+        ps = print_status
+
         db = TinyDB(db_path)
         authors = db.table(author_table)
         documents = db.table(doc_table)
@@ -340,17 +346,17 @@ class Graph:
         
         for i, a_dict in enumerate(authors.all(), 1):
             self.add_author(a_dict)
-
-            if print_status:
-                print(f'Authors {i} / {n_auth} | ', end='')
+            _print(f'Authors {i} / {n_auth} | ', end='', ps=ps)
             
             q_imp = q.parent_author == a_dict['author_id']
             n_doc = documents.count(q_imp)
+
             for j, d_dict in enumerate(documents.search(q_imp), 1):
                 self.add_document(d_dict)
+                msg = f'Documents {j} / {n_doc}   '
+                _print(msg + L(len(msg)), end='', ps=ps)
+                
+            _print('\r', end='', ps=ps)
 
-                if print_status:
-                    msg = f'Documents {j} / {n_doc}   '
-                    print(msg + L(len(msg)), end='')
         if print_status:
             print()
