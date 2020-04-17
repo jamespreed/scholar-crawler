@@ -211,6 +211,12 @@ class Graph:
         self.documents = defaultdict(set)
         self.ids = dict()
 
+    def __repr__(self):
+        n = self.__class__.__name__
+        a = len(self.authors)
+        d = len(self.documents)
+        return f'<{n} with {a} Authors, {d} Documents at 0X{id(self):x}>'
+
     @staticmethod
     def ddictlist():
         return defaultdict(list)
@@ -255,7 +261,7 @@ class Graph:
         self.documents[doc].update(doc_coauthors)
 
         # create fully-connected subgraphs
-        for a1, a2 in permutations(doc_coauthors):
+        for a1, a2 in permutations(doc_coauthors, 2):
             self.authors[a1][a2].append(doc)
 
     def deduplicate_coauthors(self, parent, doc_coauthors):
