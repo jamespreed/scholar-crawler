@@ -5,6 +5,7 @@ import jellyfish
 from collections import defaultdict
 from itertools import combinations, permutations
 from hashlib import md5
+from tinydb import TinyDB, Query
 
 
 def shave_marks_latin(txt):
@@ -73,7 +74,7 @@ class Author:
         self.docs = other.docs = list(set(self.docs).union(other.docs))
 
         # set parent id to none if either is none
-        if (self.parent_id is None) or (other.parent_author_id is None):
+        if (self.parent_id is None) or (other.parent_id is None):
             pid = None
         else:
             pid = '|'.join(
@@ -317,3 +318,39 @@ class Graph:
                 getattr(doc, attr, '') for attr in attrs
             )
             yield out
+
+    def ingest_tindydb(self, 
+                       db_path, 
+                       author_table='authors', 
+                       doc_table='documents',
+                       print_status=True):
+        """Reads in the authors and documents from a TinyDB datastore
+        into the graph.
+        """
+        # moves the cursor left by n characters
+        def L(n):
+            return f'\033[{n}D'
+
+        db = TinyDB(db_path)
+        authors = db.table(author_table)
+        documents = db.table(doc_table)
+        q = Query()
+
+        n_auth = authors.count(q)
+        
+        for i, a_dict in enumerate(authors.all(), 1):
+            self.add_author(a_dict)
+
+            if print_status:
+                print(f'Authors {i} / {n_auth} | ', end='')
+            
+            q_imp = q.parent_author == a_dict['author_id']
+            n_doc = documents.count(q_imp)
+            for j, d_dict in enumerate(documents.search(q_imp), 1):
+                self.add_document(d_dict)
+
+                if print_status:
+                    msg = f'Documents {j} / {n_doc}   '
+                    print(msg + L(len(msg)), end='')
+        if print_status:
+            print()
