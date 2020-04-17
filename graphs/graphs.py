@@ -242,7 +242,7 @@ class Graph:
         }
 
         doc = Document(**d_dict)
-        if len(doc.authors) == 1:
+        if len(doc.authors) <= 1:
             return
 
         parent_id = doc.parent_author
