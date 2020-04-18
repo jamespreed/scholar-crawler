@@ -33,7 +33,6 @@ class Author:
         self.parent_id = parent_id
         f, l = name.lower().rsplit(' ', 1)
         self.filn = (f[0], l)
-        self.docs = []
 
     def __repr__(self):
         n = self.__class__.__name__
@@ -50,28 +49,22 @@ class Author:
 
     def compare(self, other):
         t = self.filn == other.filn
-        p = bool(self.parent_id) and (self.parent_id == other.parent_id)
         n = jellyfish.jaro_distance(self.name.lower(), other.name.lower())
-        return (t, p, n)
+        return (t, n)
 
-    def symmetric_update(self, other):
-        """Merges two Author objects.  The best values from each are shared."""
+    def merge(self, other):
+        """Merges two Author objects.  The best values from each are shared.
+
+        Returns a new Author object.
+        """
         if self.filn != other.filn:
             raise ValueError('The names of self and other do not match.')
         
         # get the longest name
-        self.name = other.name = max([self.name, other.name], key=len)
+        name = max([self.name, other.name], key=len)
 
         # ids begining with '#' are alwayz the lowest.
-        self.author_id = other.author_id = max(
-            [
-                self.author_id, 
-                other.author_id,
-            ]
-        )
-
-        # merge docs, if using
-        self.docs = other.docs = list(set(self.docs).union(other.docs))
+        author_id = max([self.author_id, other.author_id])
 
         # set parent id to none if either is none
         if (self.parent_id is None) or (other.parent_id is None):
@@ -83,7 +76,7 @@ class Author:
                     + other.parent_id.split('|')
                 )
             )
-        self.parent_id = other.parent_id = pid
+        return self.__class__(name, author_id, pid)
 
     def update_to(self, other):
         """Updates this object only to mirror `other`"""
@@ -92,7 +85,6 @@ class Author:
         self.name = other.name
         self.author_id = other.author_id
         self.parent_id = other.parent_id
-        self.docs = other.docs
 
     def __hash__(self):
         return int(md5(self.author_id.encode()).hexdigest()[:11], 16)
@@ -208,19 +200,18 @@ class Document:
 class Graph:
 
     def __init__(self):
-        self.authors = defaultdict(self.ddictlist)    # dict[dict[list]]
-        self.documents = defaultdict(set)
-        self.ids = dict()
+        # mapping of author_id to Author object
+        self.author_ids = dict()
+        # mapping of author_id to a set of ids of co_authors
+        self.authors = defaultdict(set)
+        # mapping of document to ids of authors
+        self.documents = dict()
 
     def __repr__(self):
         n = self.__class__.__name__
         a = len(self.authors)
         d = len(self.documents)
         return f'<{n} with {a} Authors, {d} Documents at 0X{id(self):x}>'
-
-    @staticmethod
-    def ddictlist():
-        return defaultdict(list)
 
     def add_author(self, a_dict):
         """Adds an author to the graph from the dictionary `a_dict`"""
@@ -229,8 +220,8 @@ class Graph:
             a_dict['author_id'],
             None
         )
-        self.authors[author]
-        self.ids[author.author_id] = author
+        self.author_ids[author.author_id] = author
+        self.authors[author.author_id]
 
     def add_document(self, d_dict):
         """Adds coauthors of the document to the graph with the document
@@ -246,43 +237,63 @@ class Graph:
             return
 
         parent_id = doc.parent_author
-        parent = self.ids[parent_id]
+        parent = self.author_ids[parent_id]
 
         if doc in self.documents:
-            doc_coauthors = self.documents[doc]
+            doc_coauthors = [
+                self.author_ids[a_id] for a_id in self.documents[doc]
+            ]
+            NEW_DOC = False
         else:
-            doc_coauthors = {
+            doc_coauthors = [
                 Author(name, None, parent_id) for name in doc.authors
-            }
+            ]
+            NEW_DOC = True
         
         # deduplicate and merge coauthors
-        self.deduplicate_coauthors(parent, doc_coauthors)
+        self.deduplicate_coauthors(parent, doc_coauthors, NEW_DOC)
 
-        # add document as key and coauthors as values
-        self.documents[doc].update(doc_coauthors)
+        # add coauthors to parent author's set
+        doc_coauthor_ids = {a.author_id for a in doc_coauthors}
+        self.authors[parent_id].update(doc_coauthor_ids)
 
-        # create fully-connected subgraphs
-        for a1, a2 in permutations(doc_coauthors, 2):
-            self.authors[a1][a2].append(doc)
+        # document as key, replace parent + coauthors as values
+        doc_coauthor_ids.add(parent_id)
+        self.documents[doc] = doc_coauthor_ids
 
-    def deduplicate_coauthors(self, parent, doc_coauthors):
+    def deduplicate_coauthors(self, parent, doc_coauthors, new_doc):
         """Searches all of the parent's previous coauthors for duplicates in
         the list of `doc_coauthors`.
 
-        Mutates objects in doc_coauthors and self.authors[parent]
+        Mutates doc_coauthors.
         """
-        all_parent_coauthors = self.authors[parent]
+        all_parent_coauthor_ids = self.authors[parent.parent_id]
 
-        for author in doc_coauthors:
-            # check if doc author is the parent author
-            if parent.filn == author.filn:
-                author.update_to(parent)
-            
+        for ix in reversed(range(len(doc_coauthors))):
+            dca = doc_coauthors[ix]
+
+            # find the parent author in the coauthor list
+            if parent.filn == dca.filn:
+                # remove parent author from list
+                doc_coauthors.pop(ix)
+                if not new_doc:
+                    # replace the generic coauthor with the parent
+                    self.author_ids[dca.author_id] = parent
+                continue
+
             # check if the author already exists under the parent
-            for author2 in all_parent_coauthors:
-                if author.filn == author2.filn:
-                    # this mutates both authors to be the same...
-                    author.symmetric_update(author2)
+            for a_id in all_parent_coauthor_ids:
+                pca = self.author_ids[a_id]
+                if dca.filn == pca.filn:
+                    if new_doc:
+                        # replace with the existing coauthor
+                        doc_coauthors[ix] = pca
+                    else:
+                        # point existing keys to new author object
+                        new_auth = dca.merge(pca)
+                        self.author_ids[dca.author_id] = new_auth
+                        self.author_ids[pca.author_id] = new_auth
+                        doc_coauthors[ix] = new_auth
 
     def edge_list(self):
         """Returns the edgelist of the graph"""
