@@ -298,20 +298,24 @@ class Graph:
     def edge_list(self):
         """Returns the edgelist of the graph"""
         yield 'author_id_1', 'author_id_2', 'doc_id'
-        for doc, coauthors in self.documents.items():
-            for a1, a2 in combinations(coauthors, 2):
-                yield a1.author_id, a2.author_id, doc.doc_id
+        for doc, coauthor_ids in self.documents.items():
+            for id1, id2 in combinations(coauthor_ids, 2):
+                yield id1, id2, doc.doc_id
 
     def node_attributes(self):
         """Returns the attributes for each node/author"""
         yield 'author_id', 'name', 'filn', 'parent_id'
-        for a in self.authors:
+        ids = set()
+        for a in self.author_ids.values():
+            if a.author_id in ids:
+                continue
+            ids.add(a.author_id)
             yield a.author_id, a.name, ' '.join(a.filn), a.parent_id
 
     def edge_attributes(self):
         """Returns the attributes for each edge/document"""
         attrs = (
-            'doc_id'
+            'doc_id',
             'title',
             'conference',
             'book',
